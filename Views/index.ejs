@@ -1,156 +1,113 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Socket.IO chat</title>
-  <style>
-    body {
-      margin: 0;
-      padding-bottom: 3rem;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-
-    #form {
-      background: rgba(0, 0, 0, 0.15);
-      padding: 0.25rem;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      height: 3rem;
-      box-sizing: border-box;
-      backdrop-filter: blur(10px);
-    }
-
-    #input {
-      border: none;
-      padding: 0 1rem;
-      flex-grow: 1;
-      border-radius: 2rem;
-      margin: 0.25rem;
-    }
-
-    #input:focus {
-      outline: none;
-    }
-
-    #form>button {
-      background: #333;
-      border: none;
-      padding: 0 1rem;
-      margin: 0.25rem;
-      border-radius: 3px;
-      outline: none;
-      color: #fff;
-    }
-
-    #messages {
-      list-style-type: none;
-      margin: 0;
-      padding: 0;
-    }
-
-    #messages>li {
-      padding: 0.5rem 1rem;
-    }
-
-    #messages>li:nth-child(odd) {
-      background: #efefef;
-    }
- 
-  </style>
-
-
+  <title>Advanced Chat</title>
+  <link rel="stylesheet" href="/style.css">
 </head>
-
 <body>
 
-  <body>
-    <div id="adduser" style="display: block;">
+<div id="joinBox">
+  <input id="username" placeholder="Username">
+  <input id="room" placeholder="Room name">
+  <button id="joinBtn">Join</button>
+</div>
 
-      <input type="text" id="input1" placeholder="add user" />
-      <button id="buttons">Join chat</button>
-    </div>
+<div id="chatUI" style="display:none;">
+  <h2>Chat Room</h2>
+  <div id="users"></div>
+  <div id="chatBox"></div>
 
+  <form id="form">
+    <input id="input" autocomplete="off">
+    <button>Send</button>
+  </form>
 
-    <div class="chats1" id="chats" style="display: none;">
-<h2>Chat App</h2>
-      <h3>Active user :</h3>
-      <ul id="usersadd">
+  <p id="typing"></p>
+</div>
 
-      </ul>
-      <ul id="messages"></ul>
-      <form id="form" action="">
-        <input id="input" autocomplete="off" /><button id="button" type="submit">Send</button>
-      </form>
-    </div>
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+let currentUser = "";
+let currentRoom = "";
 
-// <-------------------this for user entry-------------------->
-      const forms = document.getElementById('buttons');
-      const inputs = document.getElementById('input1');
-      const block1 = document.getElementById('chats')
-      const block2 = document.getElementById('adduser')
-      console.log(block2);
-      forms.addEventListener('click', (e) => {
-        e.preventDefault();
-        console.log(inputs.value);
-        if (inputs.value) {
-          socket.emit('join', inputs.value)
+const joinBtn = document.getElementById("joinBtn");
+const usernameInput = document.getElementById("username");
+const roomInput = document.getElementById("room");
 
-          block1.style.display = "block";
-          block2.style.display = "none"
-        }
-      })
+const chatUI = document.getElementById("chatUI");
+const joinBox = document.getElementById("joinBox");
 
-      // <------------------this is a message code ---------------------->
-      const socket = io();
+const form = document.getElementById("form");
+const input = document.getElementById("input");
+const chatBox = document.getElementById("chatBox");
+const usersDiv = document.getElementById("users");
+const typingDiv = document.getElementById("typing");
 
-      const form = document.getElementById('form');
-      const input = document.getElementById('input');
-      const messages = document.getElementById('messages');
-const userList=document.getElementById("usersadd")
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        if (input.value) {
-          socket.emit('chat message', input.value);
-          input.value = '';
-        }
-      });
+joinBtn.onclick = () => {
+    const username = usernameInput.value.trim();
+    const room = roomInput.value.trim();
 
-      // <=====================Main Work===========================>
-      socket.on('chat message', (msg) => {
-        const item = document.createElement('li');
-        item.innerHTML =`${msg.username}: ${msg.message}`;
-        messages.appendChild(item);
-        // window.scrollTo(0, document.body.scrollHeight);
-      });
+    if (!username || !room) return;
 
-      socket.on('update users',(users)=>{
-        userList.innerText=''
-        users.forEach(user => {
-          const item=document.createElement('li')
-          item.innerHTML=user;
-          userList.appendChild(item)
-        });
-      })
+    currentUser = username;
+    currentRoom = room;
 
-      socket.on('user connected',(username)=>{
-        const item=document.createElement('li')
-        item.innerText=`${username} connected`
-        messages.appendChild(item)
-      })
+    socket.emit("join", { username, room });
 
-      socket.on('user disconnected', (username) => {
-            const item = document.createElement('li');
-            item.innerText = `${username} disconnected`;
-            messages.appendChild(item);
-        });
-    </script>
+    joinBox.style.display = "none";
+    chatUI.style.display = "block";
+};
 
-  </body>
+form.addEventListener("submit", e => {
+    e.preventDefault();
+    if (input.value) {
+        socket.emit("chat message", input.value);
+        input.value = "";
+    }
+});
 
+input.addEventListener("input", () => {
+    socket.emit("typing");
+});
+
+socket.on("chat message", msg => {
+    const div = document.createElement("div");
+    div.classList.add("message");
+
+    if (msg.username === currentUser) {
+        div.classList.add("me");
+    } else {
+        div.classList.add("other");
+    }
+
+    div.innerHTML = `<strong>${msg.username}</strong>
+                     <small>${msg.time}</small>
+                     <div>${msg.message}</div>`;
+
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+});
+
+socket.on("update users", users => {
+    usersDiv.innerHTML = "<strong>Online:</strong> " + users.join(", ");
+});
+
+socket.on("typing", username => {
+    typingDiv.innerText = username + " is typing...";
+    setTimeout(() => typingDiv.innerText = "", 1000);
+});
+
+socket.on("chat history", history => {
+    history.forEach(msg => {
+        socket.emit("chat message", msg);
+    });
+});
+
+socket.on("errorMessage", msg => {
+    alert(msg);
+});
+</script>
+
+</body>
 </html>

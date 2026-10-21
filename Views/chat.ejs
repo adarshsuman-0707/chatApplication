@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Room</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="chat-container">
+
+    <div class="sidebar">
+        <h3>Online Users</h3>
+        <ul id="users"></ul>
+    </div>
+
+    <div class="chat-area">
+        <div id="messages"></div>
+
+        <form id="form">
+            <input id="input" autocomplete="off" placeholder="Type message...">
+            <input type="file" id="file">
+            <button>Send</button>
+        </form>
+    </div>
+
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    console.log("All cookies:", document.cookie);
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+}
+//let username = "<%= typeof username !== 'undefined' ? username : '' %>";
+let username = getCookie("username");
+console.log("Username from cookie:", username);
+if (!username) {
+    window.location.href = "/";
+}
+let room = "general";
+
+socket.emit("join", { username, room });
+
+const form = document.getElementById("form");
+const input = document.getElementById("input");
+const fileInput = document.getElementById("file");
+const messages = document.getElementById("messages");
+const usersList = document.getElementById("users");
+
+form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    let fileUrl = "";
+
+    if (fileInput.files[0]) {
+        const formData = new FormData();
+        formData.append("file", fileInput.files[0]);
+
+        const res = await fetch("/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await res.json();
+       fileUrl = {
+    url: "/uploads/" + data.file,
+    name: data.originalName,
+    type: data.mimeType
+};
+    }
+
+    socket.emit("chat message", {
+        username,
+        room,
+        message: input.value,
+        file: fileUrl
+    });
+
+    input.value = "";
+    fileInput.value = "";
+});
+socket.on("chat message", (msg) => {
+
+    const div = document.createElement("div");
+    div.classList.add("message");
+
+    let fileContent = "";
+
+    if (msg.file && msg.file.url) {
+
+        if (msg.file.type.startsWith("image/")) {
+            fileContent = `
+               <img src="${msg.file.url}" class="chat-image" height="120">
+            <br>
+            <a href="${msg.file.url}" download="${msg.file.name}" class="download-btn">
+                ⬇ Download
+            </a>
+            `;
+        } else {
+            fileContent = `
+                <div class="file-box">
+                    📎 <a href="${msg.file.url}" target="_blank">
+                        ${msg.file.name}
+                    </a>
+                </div>
+            `;
+        }
+    }
+
+    div.innerHTML = `
+        <strong>${msg.sender}</strong>
+        <small>${new Date(msg.createdAt || Date.now()).toLocaleTimeString()}</small>
+        <p>${msg.message || ""}</p>
+        ${fileContent}
+    `;
+
+    messages.appendChild(div);
+});
+
+socket.on("update users", (users) => {
+    usersList.innerHTML = "";
+    users.forEach(user => {
+        const li = document.createElement("li");
+        li.innerText = user;
+        usersList.appendChild(li);
+    });
+});
+</script>
+
+</body>
+</html>
